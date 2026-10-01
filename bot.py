@@ -103,16 +103,45 @@ def extract_first_url(text: str) -> Optional[str]:
     return None
 
 
+def get_cookie_file_path() -> Optional[str]:
+    cookies_content = os.environ.get("COOKIES_CONTENT", "").strip()
+    if cookies_content:
+        path = os.path.join(tempfile.gettempdir(), "ytdlp_cookies.txt")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(cookies_content)
+            return path
+        except Exception:
+            pass
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    local_candidates = [
+        os.path.join(base_dir, "cookies.txt"),
+        os.path.join(os.getcwd(), "cookies.txt"),
+    ]
+    for cand in local_candidates:
+        if os.path.exists(cand):
+            return cand
+
+    return None
+
+
 def get_media_info(url: str) -> Dict[str, Any]:
     ffmpeg_exe = FFmpegHelper.get_ffmpeg_path()
+    cookie_path = get_cookie_file_path()
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
     }
     if ffmpeg_exe:
         ydl_opts["ffmpeg_location"] = ffmpeg_exe
+    if cookie_path:
+        ydl_opts["cookiefile"] = cookie_path
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(url, download=False)
@@ -131,6 +160,7 @@ def format_duration(seconds: Optional[float]) -> str:
 
 def download_media(url: str, mode: str, output_folder: str) -> str:
     ffmpeg_exe = FFmpegHelper.get_ffmpeg_path()
+    cookie_path = get_cookie_file_path()
     os.makedirs(output_folder, exist_ok=True)
     outtmpl = os.path.join(output_folder, "%(title).80B [%(id)s].%(ext)s")
 
@@ -141,10 +171,15 @@ def download_media(url: str, mode: str, output_folder: str) -> str:
         "noplaylist": True,
         "overwrites": True,
         "windowsfilenames": True,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
     }
 
     if ffmpeg_exe:
         ydl_opts["ffmpeg_location"] = ffmpeg_exe
+    if cookie_path:
+        ydl_opts["cookiefile"] = cookie_path
 
     if mode == "audio":
         ydl_opts["format"] = "bestaudio/best"
