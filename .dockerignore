@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+build/
+dist/
+telegram_downloads/
+.git
+.gitignore
+*.bat

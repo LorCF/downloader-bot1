@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+telegram_downloads/
+bot_config.json
+cookies.txt
+.env
