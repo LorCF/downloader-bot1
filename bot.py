@@ -5,6 +5,7 @@ import json
 import shutil
 import tempfile
 import threading
+import subprocess
 from typing import Optional, Dict, Any
 
 import telebot
@@ -209,7 +210,16 @@ def download_media(url: str, mode: str, output_folder: str) -> str:
             }
         ]
     else:
-        ydl_opts["format"] = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best"
+        ydl_opts["format"] = (
+            "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[acodec^=mp4a]/"
+            "bestvideo[vcodec^=avc1][height<=1080]+bestaudio/"
+            "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+            "bestvideo[vcodec^=avc1]+bestaudio/"
+            "best[vcodec^=avc1][height<=1080]/"
+            "best[vcodec^=avc1]/"
+            "bestvideo[height<=1080]+bestaudio/"
+            "best[height<=1080]/best"
+        )
         ydl_opts["merge_output_format"] = "mp4"
         ydl_opts["postprocessor_args"] = {
             "merger": ["-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart"],
@@ -231,7 +241,37 @@ def download_media(url: str, mode: str, output_folder: str) -> str:
             for candidate in os.listdir(output_folder):
                 full_cand = os.path.join(output_folder, candidate)
                 if os.path.isfile(full_cand):
-                    return full_cand
+                    filename = full_cand
+                    break
+
+        if mode == "video" and os.path.exists(filename) and ffmpeg_exe:
+            vcodec = info.get("vcodec") or ""
+            if info.get("requested_formats"):
+                for rf in info["requested_formats"]:
+                    if rf.get("vcodec") and rf["vcodec"] != "none":
+                        vcodec = rf["vcodec"]
+                        break
+
+            if vcodec and not vcodec.lower().startswith("avc"):
+                ios_fixed_file = os.path.join(output_folder, f"ios_fixed_{os.path.basename(filename)}")
+                cmd = [
+                    ffmpeg_exe, "-y",
+                    "-i", filename,
+                    "-c:v", "libx264",
+                    "-preset", "veryfast",
+                    "-pix_fmt", "yuv420p",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-movflags", "+faststart",
+                    ios_fixed_file
+                ]
+                res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if res.returncode == 0 and os.path.exists(ios_fixed_file):
+                    try:
+                        os.remove(filename)
+                    except Exception:
+                        pass
+                    filename = ios_fixed_file
 
         return filename
 
